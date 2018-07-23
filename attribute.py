@@ -33,8 +33,8 @@ class attribute (object):
         self.outAttSig = tf.sigmoid(self.outAtt)
 
         # Loss
-        self.totalLoss = tf.reduce_mean(tf.squared_difference(self.attYSeen, self.outAttSig))
-        # self.totalLoss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=self.attYSeen, logits=self.outAtt))
+        # self.totalLoss = tf.reduce_mean(tf.squared_difference(self.attYSeen, self.outAttSig))
+        self.totalLoss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=self.attYSeen, logits=self.outAtt))
 
         # Define Optimizer
         updateOps = tf.get_collection(tf.GraphKeys.UPDATE_OPS)

@@ -6,6 +6,8 @@ import plotly.plotly as py
 import plotly.graph_objs as go
 from scipy import spatial
 from graphviz import Digraph
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
 
 """
 import created files
@@ -14,6 +16,7 @@ import globalV
 from loadData import loadData
 from attribute import attribute
 from classify import classify
+from softmax import softmax
 
 """
 Disable unnecessary logs.
@@ -48,6 +51,8 @@ class dataClass:
     treeMap = None
     distanceFunc = None
     tmpConcatAtt = None
+    lenTr = None
+    originalAtt = None
 
 def argumentParser():
     """
@@ -72,12 +77,12 @@ def argumentParser():
 
     # Working directory
     parser.add_argument('--KEY', type=str, default='APY', help='Choose dataset (AWA2, CUB, SUN, APY)')
-    parser.add_argument('--DIR', type=str, default='APY_0', help='Choose working directory')
+    parser.add_argument('--DIR', type=str, default='APY_249', help='Choose working directory')
     parser.add_argument('--numClass', type=int, default=32, help='Number of class')
 
     # Hyper Parameter
-    parser.add_argument('--maxSteps', type=int, default=0, help='Number of steps to run trainer.')
-    parser.add_argument('--lr', type=float, default=1e-4, help='Initial learning rate')
+    parser.add_argument('--maxSteps', type=int, default=100, help='Number of steps to run trainer.')
+    parser.add_argument('--lr', type=float, default=1e-7, help='Initial learning rate')
     parser.add_argument('--batchSize', type=int, default=32, help='Batch size')
 
     # Initialize or Restore Model
@@ -86,7 +91,7 @@ def argumentParser():
     parser.add_argument('--TC', type=int, default=0, help='0.Restore 1.Train classify model')
 
     # Choose what to do
-    parser.add_argument('--OPT', type=int, default=0, help='0.CNN, 1.Attribute, 2.Classify, 3.Accuracy')
+    parser.add_argument('--OPT', type=int, default=0, help='0.None, 1.Attribute, 2.Classify, 3.Accuracy')
 
     # ETC.
     parser.add_argument('--HEADER', type=int, default=0, help='0.Not-Show, 1.Show')
@@ -137,12 +142,94 @@ def loadDataset():
     tmpAtt = np.concatenate((trainAtt, valAtt, testAtt), axis=0)
     tmpWord2Vec = np.concatenate((trainVec, valVec, testVec), axis=0)
     tmpCombine = np.concatenate((tmpAtt, tmpWord2Vec), axis=1)
+
+    if globalV.FLAGS.KEY == "APY":
+        with open(globalV.FLAGS.BASEDIR + globalV.FLAGS.APYPATH + 'attribute_names.txt', 'r') as f:
+            allClassAttName = [line.strip() for line in f]
+
+    # Based on TreeMap
+    tmpReduceAtt = np.zeros((tmpAtt.shape[0], 31))
+    for k in range(tmpAtt.shape[0]):
+        if tmpAtt[k][allClassAttName.index('Wing')] > 0.108:
+            tmpReduceAtt[k][0] = 1
+
+        if tmpAtt[k][allClassAttName.index('Ear')] > 0.267:
+            tmpReduceAtt[k][1] = 1
+        if tmpAtt[k][allClassAttName.index('Metal')] > 0.472:
+            tmpReduceAtt[k][2] = 1
+
+        if tmpAtt[k][allClassAttName.index('Text')] > 0.016:
+            tmpReduceAtt[k][3] = 1
+        if tmpAtt[k][allClassAttName.index('Hand')] > 0.272:
+            tmpReduceAtt[k][4] = 1
+        if tmpAtt[k][allClassAttName.index('Tail')] > 0.709:
+            tmpReduceAtt[k][5] = 1
+
+        if tmpAtt[k][allClassAttName.index('Stem/Trunk')] > 0.253:
+            tmpReduceAtt[k][6] = 1
+        if tmpAtt[k][allClassAttName.index('Wood')] > 0.17:
+            tmpReduceAtt[k][7] = 1
+        if tmpAtt[k][allClassAttName.index('Ear')] > 0.645:
+            tmpReduceAtt[k][8] = 1
+        if tmpAtt[k][allClassAttName.index('Glass')] > 0.002:
+            tmpReduceAtt[k][9] = 1
+
+        if tmpAtt[k][allClassAttName.index('Screen')] > 0.421:
+            tmpReduceAtt[k][10] = 1
+        if tmpAtt[k][allClassAttName.index('Cloth')] > 0.176:
+            tmpReduceAtt[k][11] = 1
+        if tmpAtt[k][allClassAttName.index('2D Boxy')] > 0.11:
+            tmpReduceAtt[k][12] = 1
+        if tmpAtt[k][allClassAttName.index('Tail')] > 0.354:
+            tmpReduceAtt[k][13] = 1
+        if tmpAtt[k][allClassAttName.index('Foot/Shoe')] > 0.424:
+            tmpReduceAtt[k][14] = 1
+
+        if tmpAtt[k][allClassAttName.index('Furn. Seat')] > 0.283:
+            tmpReduceAtt[k][15] = 1
+        if tmpAtt[k][allClassAttName.index('Handlebars')] > 0.78:
+            tmpReduceAtt[k][16] = 1
+        if tmpAtt[k][allClassAttName.index('Exhaust')] > 0.01:
+            tmpReduceAtt[k][17] = 1
+        if tmpAtt[k][allClassAttName.index('Saddle')] > 0.04:
+            tmpReduceAtt[k][18] = 1
+
+        if tmpAtt[k][allClassAttName.index('Clear')] > 0.025:
+            tmpReduceAtt[k][19] = 1
+        if tmpAtt[k][allClassAttName.index('Furn. Seat')] > 0.678:
+            tmpReduceAtt[k][20] = 1
+        if tmpAtt[k][allClassAttName.index('Headlight')] > 0.283:
+            tmpReduceAtt[k][21] = 1
+        if tmpAtt[k][allClassAttName.index('Snout')] > 0.864:
+            tmpReduceAtt[k][22] = 1
+        if tmpAtt[k][allClassAttName.index('Ear')] > 0.884:
+            tmpReduceAtt[k][23] = 1
+
+        if tmpAtt[k][allClassAttName.index('Taillight')] > 0.101:
+            tmpReduceAtt[k][24] = 1
+        if tmpAtt[k][allClassAttName.index('Round')] > 0.163:
+            tmpReduceAtt[k][25] = 1
+        if tmpAtt[k][allClassAttName.index('Tail')] > 0.463:
+            tmpReduceAtt[k][26] = 1
+        if tmpAtt[k][allClassAttName.index('Occluded')] > 0.334:
+            tmpReduceAtt[k][27] = 1
+
+        if tmpAtt[k][allClassAttName.index('Exhaust')] > 0.069:
+            tmpReduceAtt[k][28] = 1
+        if tmpAtt[k][allClassAttName.index('Metal')] > 0.074:
+            tmpReduceAtt[k][29] = 1
+        if tmpAtt[k][allClassAttName.index('Saddle')] > 0.243:
+            tmpReduceAtt[k][30] = 1
+
+
     if globalV.FLAGS.SELATT == 0:
         concatAtt = tmpAtt
     elif globalV.FLAGS.SELATT == 1:
         concatAtt = tmpWord2Vec
     elif globalV.FLAGS.SELATT == 2:
         concatAtt = tmpCombine
+    elif globalV.FLAGS.SELATT == 3:
+        concatAtt = tmpReduceAtt
 
 
     # Check where there is some class that has same attributes
@@ -205,7 +292,7 @@ def loadDataset():
     np.random.shuffle(s)
     trainX = trainX[s]
     trainY = trainY[s]
-    trainYAtt = trainYAtt[s]
+    # trainYAtt = trainYAtt[s]
 
     # Split train data 70/30 for each class
     trX70 = None;
@@ -351,6 +438,8 @@ def loadDataset():
     returnData.treeMap = treeMap
     returnData.distanceFunc = distanceFunc
     returnData.tmpConcatAtt = tmpConcatAtt
+    returnData.lenTr = len(trainClass)
+    returnData.originalAtt = tmpAtt
 
     return returnData
 
@@ -413,10 +502,55 @@ if __name__ == "__main__":
 
     dataSet = loadDataset()
 
+    if globalV.FLAGS.KEY == "APY":
+        with open(globalV.FLAGS.BASEDIR + globalV.FLAGS.APYPATH + 'attribute_names.txt', 'r') as f:
+            allClassAttName = [line.strip() for line in f]
+    elif globalV.FLAGS.KEY == "AWA2":
+        with open(globalV.FLAGS.BASEDIR + globalV.FLAGS.AWA2PATH + 'predicates.txt', 'r') as f:
+            allClassAttName = [line.split()[1] for line in f]
+
+    # from sklearn import tree
+    # clf = tree.DecisionTreeClassifier()
+    # clf = clf.fit(dataSet.concatAtt, range(len(dataSet.allClassName)))
+    #
+    # import graphviz
+    # dot_data = tree.export_graphviz(clf, out_file=None,
+    #                                 feature_names=allClassAttName,
+    #                                 class_names=dataSet.allClassName,
+    #                                 filled=True, rounded=True,
+    #                                 special_characters=True)
+    # graph = graphviz.Source(dot_data)
+    # graph.render(globalV.FLAGS.KEY)
+    #
+    #
+    # trace = go.Heatmap(z=dataSet.concatAtt,
+    #                    x=allClassAttName,
+    #                    y=dataSet.allClassName,
+    #                    zmax=1.0,
+    #                    zmin=0.0
+    #                    )
+    # data = [trace]
+    # layout = go.Layout(title=globalV.FLAGS.KEY, width=1920, height=1080)
+    # fig = go.Figure(data=data, layout=layout)
+    # py.image.save_as(fig, filename=globalV.FLAGS.DIR + '_Heat.png')
+
+    # for n_clusters in range(2, 32):
+    #     kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(dataSet.concatAtt)
+    #     silhouette_avg = silhouette_score(dataSet.concatAtt, kmeans.labels_)
+    #     print('For n_clusters = {0} The average silhouette_score is : {1}'.format(n_clusters, silhouette_avg))
+
+
+    # kmeanPred = KMeans(n_clusters=10, random_state=0).fit(dataSet.concatAtt)
+    # mapAll = []
+    # for i in range(dataSet.concatAtt.shape[0]):
+    #     print('{0}::{1}'.format(dataSet.allClassName[i],kmeanPred.labels_[i]))
+    #     mapAll.append(kmeanPred.labels_[i])
+    # mapAll = np.array(mapAll)
+
     if globalV.FLAGS.OPT == 1:
         print('\nTrain Attribute')
         attModel = attribute()
-        attModel.trainAtt(dataSet.baX70, dataSet.baAtt70, dataSet.vX, dataSet.vAtt, dataSet.teX, dataSet.teAtt)
+        attModel.trainAtt(dataSet.trX70, dataSet.trAtt70, dataSet.vX, dataSet.vAtt, dataSet.teX, dataSet.teAtt)
 
     elif globalV.FLAGS.OPT == 2:
         print('\nTrain Classify')
@@ -424,7 +558,7 @@ if __name__ == "__main__":
         tmpClassIndex = np.arange(dataSet.concatAtt.shape[0])
         numberOfSample = 35
         for i in range (globalV.FLAGS.numClass):
-            if i < 12:
+            if i < dataSet.lenTr:
                 countSample = 0
                 for j in range(dataSet.trX30.shape[0]):
                     if dataSet.trY30[j] == i:
@@ -450,18 +584,19 @@ if __name__ == "__main__":
         with g2.as_default():
             classifier = classify()
 
-        if not os.path.isfile('Report_OPT_3.csv'):
-            with open("Report_OPT_3.csv", "a") as file:
-                file.write('Key, TrAcc, VAcc, TeAcc, EuTAcc, EuVAcc, EuTeAcc, Top1Tr, Top1V, Top1Te, Top1Avg,'
-                           'Top3Tr, Top3V, Top3Te, Top3Avg,'
-                           'Top5Tr, Top5V, Top5Te, Top5Avg,'
-                           'Top7Tr, Top7V, Top7Te, Top7Avg,'
-                           'Top10Tr, Top10V, Top10Te, Top10Avg,'
-                           'person, statue, car, areoplane, cat, zebra, sheep, bicycle, bottle, sofa, carriage, bird, potted_plant,'
-                           'tv_monitor, building, centaur, train, donkey, jetski, dining_table, monkey, bus, wolf, dog, horse,'
-                           'cow, motorbike, mug, chair, boat, bag, goat\n')
+        if globalV.FLAGS.KEY == 'APY':
+            if not os.path.isfile('Report_OPT_3.csv'):
+                with open("Report_OPT_3.csv", "a") as file:
+                    file.write('Key, TrAcc, VAcc, TeAcc, EuTAcc, EuVAcc, EuTeAcc, Top1Tr, Top1V, Top1Te, Top1Avg,'
+                               'Top3Tr, Top3V, Top3Te, Top3Avg,'
+                               'Top5Tr, Top5V, Top5Te, Top5Avg,'
+                               'Top7Tr, Top7V, Top7Te, Top7Avg,'
+                               'Top10Tr, Top10V, Top10Te, Top10Avg,'
+                               'person, statue, car, areoplane, cat, zebra, sheep, bicycle, bottle, sofa, carriage, bird, potted_plant,'
+                               'tv_monitor, building, centaur, train, donkey, jetski, dining_table, monkey, bus, wolf, dog, horse,'
+                               'cow, motorbike, mug, chair, boat, bag, goat\n')
 
-        myFile = open("Report_OPT_3.csv", "a")
+        myFile = open("Report_OPT_3_"+globalV.FLAGS.KEY+".csv", "a")
         myFile.write('{0}'.format(globalV.FLAGS.DIR))
 
         # Classify accuracy
@@ -531,6 +666,8 @@ if __name__ == "__main__":
                 print('Class: {0:<15} Size: {1:<10} Accuracy = {2:.4f}%'.format(className[z], eachInputX.shape[0], tmpAcc))
                 myFile.write(',{0}'.format(tmpAcc))
                 confusion.append(calConfusion(eachInputX))
+        myFile.write('\n'.format(tmpAcc))
+        myFile.close()
 
         confusion = []
         accEachClass(0, 15, dataSet.trX30, dataSet.trY30, dataSet.allClassName, confusion)
@@ -555,8 +692,13 @@ if __name__ == "__main__":
         py.image.save_as(fig, filename=globalV.FLAGS.DIR + '_Confusion_.png')
 
         # Show classes Heat map
-        with open(globalV.FLAGS.BASEDIR + globalV.FLAGS.APYPATH + 'attribute_names.txt', 'r') as f:
-            allClassAttName = [line.strip() for line in f]
+        if globalV.FLAGS.KEY == "APY":
+            with open(globalV.FLAGS.BASEDIR + globalV.FLAGS.APYPATH + 'attribute_names.txt', 'r') as f:
+                allClassAttName = [line.strip() for line in f]
+        elif globalV.FLAGS.KEY == "AWA2":
+            with open(globalV.FLAGS.BASEDIR + globalV.FLAGS.AWA2PATH + 'predicates.txt', 'r') as f:
+                allClassAttName = [line.split()[1] for line in f]
+
         trace = go.Heatmap(z=dataSet.concatAtt,
                            x=allClassAttName,
                            y=dataSet.allClassName,
@@ -648,6 +790,237 @@ if __name__ == "__main__":
         clusterClassAcc(dataSet.trX30, trYCluster30, dataSet.trY30, "Train")
         clusterClassAcc(dataSet.vX, vYCluster, dataSet.vY, "Val")
         clusterClassAcc(dataSet.teX, teYCluster, dataSet.teY, "Val")
+
+    elif globalV.FLAGS.OPT == 5:
+        print('\nTrain Binary')
+
+        tmp_combineX = np.concatenate((dataSet.trX70, dataSet.trX30, dataSet.vX, dataSet.teX), axis=0)
+        tmp_combineY = np.concatenate((dataSet.trY70, dataSet.trY30, dataSet.vY, dataSet.teY), axis=0)
+        s = np.arange(tmp_combineX.shape[0])
+        np.random.shuffle(s)
+        tmp_combineX = tmp_combineX[s]
+        tmp_combineY = tmp_combineY[s]
+        print(tmp_combineX.shape, tmp_combineY.shape)
+
+        # Balance each class Data
+        pickNum = 300
+        combineX = []
+        combineY = []
+        for i in range(len(dataSet.allClassName)):
+            count = 0
+            for j in range(tmp_combineY.shape[0]):
+                if tmp_combineY[j] == i:
+                    combineX.append(tmp_combineX[j])
+                    combineY.append(tmp_combineY[j])
+                    count += 1
+                if count == pickNum:
+                    break
+        combineX = np.array(combineX)
+        combineY = np.array(combineY)
+        print(combineX.shape, combineY.shape)
+
+
+        if globalV.FLAGS.KEY == "APY":
+            with open(globalV.FLAGS.BASEDIR + globalV.FLAGS.APYPATH + 'attribute_names.txt', 'r') as f:
+                allClassAttName = [line.strip() for line in f]
+
+        """
+        Wing Nodes (lr=1e-7)
+        """
+        # indexAtt = allClassAttName.index('Wing')
+        # _trX = []
+        # _trY = []
+        # _teX = []
+        # _teY = []
+        # for i in range(combineX.shape[0]):
+        #     if dataSet.allClassName[combineY[i]] not in ['person']:
+        #         if dataSet.concatAtt[combineY[i]][indexAtt] <= 0.108:
+        #             if dataSet.allClassName[combineY[i]] in ['car', 'mug', 'sofa', 'bicycle', 'boat', 'zebra', 'wolf', 'cow', 'goat']:
+        #                 _teX.append(combineX[i])
+        #                 _teY.append(0)
+        #             else:
+        #                 _trX.append(combineX[i])
+        #                 _trY.append(0)
+        #         else:
+        #             if i%2 == 0:
+        #                 _trX.append(combineX[i])
+        #                 _trY.append(1)
+        #             else:
+        #                 _teX.append(combineX[i])
+        #                 _teY.append(1)
+        # _trX = np.array(_trX)
+        # _trY = np.array(_trY)
+        # _teX = np.array(_teX)
+        # _teY = np.array(_teY)
+        # print(_trX.shape, _trY.shape)
+        # print(_teX.shape, _teY.shape)
+        # print(np.sum(_trY), np.sum(_teY))
+
+        """
+        Ear Nodes (lr=1e-7)
+        """
+        # #
+        # indexAtt = allClassAttName.index('Ear')
+        # _trX = []
+        # _trY = []
+        # _teX = []
+        # _teY = []
+        # for i in range(combineX.shape[0]):
+        #     if dataSet.allClassName[combineY[i]] not in ['bird', 'Aeroplane', 'centaur', 'person']:
+        #         if dataSet.concatAtt[combineY[i]][indexAtt] <= 0.267:
+        #             if dataSet.allClassName[combineY[i]] in ['car', 'mug', 'sofa', 'bicycle', 'boat']:
+        #                 _teX.append(combineX[i])
+        #                 _teY.append(0)
+        #             else:
+        #                 _trX.append(combineX[i])
+        #                 _trY.append(0)
+        #         else:
+        #             if dataSet.allClassName[combineY[i]] in ['zebra', 'wolf', 'cow', 'goat']:
+        #                 _teX.append(combineX[i])
+        #                 _teY.append(1)
+        #             else:
+        #                 _trX.append(combineX[i])
+        #                 _trY.append(1)
+        # _trX = np.array(_trX)
+        # _trY = np.array(_trY)
+        # _teX = np.array(_teX)
+        # _teY = np.array(_teY)
+        # print(_trX.shape, _trY.shape)
+        # print(_teX.shape, _teY.shape)
+
+        """
+        Hand Nodes (lr=1e-7)
+        """
+        _trX = []
+        _trY = []
+        _teX = []
+        _teY = []
+        for i in range(combineX.shape[0]):
+            if dataSet.concatAtt[combineY[i]][allClassAttName.index('Wing')] <= 0.108 and dataSet.concatAtt[combineY[i]][allClassAttName.index('Ear')] > 0.267:
+                if dataSet.concatAtt[combineY[i]][allClassAttName.index('Hand')] <= 0.272:
+                    if dataSet.allClassName[combineY[i]] in ['zebra', 'wolf', 'cow', 'goat']:
+                        # _teX.append(combineX[i])
+                        # _teY.append(0)
+                        None
+                    else:
+                        _trX.append(combineX[i])
+                        _trY.append(0)
+                elif dataSet.allClassName[combineY[i]] not in ['monkey']:
+                    if dataSet.allClassName[combineY[i]] in ['statue']:
+                        _teX.append(combineX[i])
+                        _teY.append(1)
+                        # None
+                    else:
+                        _trX.append(combineX[i])
+                        _trY.append(1)
+        _trX = np.array(_trX)
+        _trY = np.array(_trY)
+        _teX = np.array(_teX)
+        _teY = np.array(_teY)
+        print(_trX.shape, _trY.shape)
+        print(_teX.shape, _teY.shape)
+        softModel = softmax()
+        softModel.train(_trX, _trY, _teX, _teY)
+
+    elif globalV.FLAGS.OPT == 6:
+        from sklearn import tree
+        clf = tree.DecisionTreeClassifier()
+        clf = clf.fit(dataSet.originalAtt, range(len(dataSet.allClassName)))
+
+
+        g1 = tf.Graph()
+        g2 = tf.Graph()
+        with g1.as_default():
+            model = attribute()
+        with g2.as_default():
+            classifier = classify()
+
+
+        def transformBack (reduceAtt):
+            tmpFullAtt = np.zeros((reduceAtt.shape[0], 64))
+            indexMapping = [21, 9, 52, 37, 17, 6, 48, 54, 9, 57, 50, 55, 0, 6, 20, 41, 33, 31, 45, 60, 41, 28, 10, 9, 29, 2, 6, 5, 31, 52, 45]
+            for k in range(reduceAtt.shape[0]):
+                for l in range(reduceAtt.shape[1]):
+                    tmpFullAtt[k][indexMapping[l]] = reduceAtt[k][l]
+            return tmpFullAtt
+
+
+        def clusterClassAcc(start, end, x1, y1, keyword):
+
+            for z in range(start, end):
+                eachInputX = []
+                eachInputY = []
+                for k in range(0, x1.shape[0]):
+                    if y1[k] == z:
+                        eachInputX.append(x1[k])
+                        eachInputY.append(y1[k])
+                eachInputX = np.array(eachInputX)
+                eachInputY = np.array(eachInputY)
+
+                tmpAtt_1 = model.getAttribute(eachInputX)
+
+                # predY_1 = classifier.predict(tmpAtt_1)
+                tmpAtt_1 = transformBack(tmpAtt_1)
+                tmpAtt_1 = np.where(tmpAtt_1 > 0.5, 1, 0)
+                predY_1 = clf.predict(tmpAtt_1)
+
+                tmpAcc_1 = np.mean(np.equal(predY_1, eachInputY))*100
+                print('Class: {0:<15} Size: {1:<10} Accuracy = {2:.4f}%'.format(dataSet.allClassName[z], eachInputX.shape[0], tmpAcc_1))
+
+
+            # tmpAtt_0 = model.getAttribute(x)
+            # predY_1 = classifier.predict(tmpAtt_0)
+            #
+            # tmpAtt_0 = transformBack(tmpAtt_0)
+            # tmpAtt_0 = np.where(tmpAtt_0 > 0.5, 1, 0)
+            #
+            #
+            # selectClass = 2
+            # showAtt = []
+            # showAtt.append(dataSet.concatAtt[selectClass])
+            # print(dataSet.allClassName[selectClass])
+            # for m in range(y.shape[0]):
+            #     if y[m] == selectClass:
+            #         showAtt.append(tmpAtt_0[m])
+            #
+            # # showAtt = np.array(showAtt)
+            # # trace = go.Heatmap(z=showAtt,
+            # #                    x=allClassAttName,
+            # #                    zmax=1.0,
+            # #                    zmin=0.0
+            # #                    )
+            # # data = [trace]
+            # # layout = go.Layout(title=globalV.FLAGS.KEY, width=1920, height=1080)
+            # # fig = go.Figure(data=data, layout=layout)
+            # # py.image.save_as(fig, filename=globalV.FLAGS.DIR + '_Test.png')
+            #
+            #
+            # predY_0 = clf.predict(tmpAtt_0)
+            # print('{0} Accuracy = {1:.4f}%'.format(keyword, np.mean(np.equal(predY_1, y)) * 100))
+            # print('{0} Accuracy = {1:.4f}%'.format(keyword, np.mean(np.equal(predY_0, y)) * 100))
+
+        clusterClassAcc(0, 15, dataSet.trX70, dataSet.trY70, "Train70")
+        # clusterClassAcc(dataSet.trX30, dataSet.trY30, "Train30")
+        # clusterClassAcc(dataSet.vX, dataSet.vY, "Val")
+        # clusterClassAcc(dataSet.teX, dataSet.teY, "Test")
+
+        # def accEachClass(start, end, x1, y1, className):
+        #     for z in range(start, end):
+        #         eachInputX = []
+        #         eachInputY = []
+        #         for k in range(0, x1.shape[0]):
+        #             if y1[k] == z:
+        #                 eachInputX.append(x1[k])
+        #                 eachInputY.append(y1[k])
+        #         eachInputX = np.array(eachInputX)
+        #         eachInputY = np.array(eachInputY)
+        #         tmpAcc_1 = accuracy(model, classifier, eachInputX, eachInputY) * 100
+        #         print('Class: {0:<15} Size: {1:<10} Accuracy = {2:.4f}%'.format(className[z], eachInputX.shape[0], tmpAcc_1))
+        # accEachClass(0, 15, dataSet.trX30, dataSet.trY30, dataSet.allClassName)
+        # accEachClass(15, 20, dataSet.vX, dataSet.vY, dataSet.allClassName)
+        # accEachClass(20, 32, dataSet.teX, dataSet.teY, dataSet.allClassName)
+
+
 
 
 
