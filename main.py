@@ -6,6 +6,7 @@ import plotly.plotly as py
 import plotly.graph_objs as go
 from scipy import spatial
 from graphviz import Digraph
+from sklearn.neighbors import NearestNeighbors
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
@@ -17,6 +18,7 @@ from loadData import loadData
 from attribute import attribute
 from classify import classify
 from softmax import softmax
+from alexnet import *
 
 """
 Disable unnecessary logs.
@@ -64,7 +66,7 @@ def argumentParser():
     # Input image size & attribute dimension
     parser.add_argument('--width', type=int, default=227, help='Image width')
     parser.add_argument('--height', type=int, default=227, help='Image height')
-    parser.add_argument('--SELATT', type=int, default=0, help='0.Att, 1.Word2Vec, 2.Att+Word2Vec')
+    parser.add_argument('--SELATT', type=int, default=3, help='0.Att, 1.Word2Vec, 2.Att+Word2Vec')
     parser.add_argument('--numAtt', type=int, default=64, help='Dimension of Attribute')
 
     # Dataset Path
@@ -91,7 +93,7 @@ def argumentParser():
     parser.add_argument('--TC', type=int, default=0, help='0.Restore 1.Train classify model')
 
     # Choose what to do
-    parser.add_argument('--OPT', type=int, default=0, help='0.None, 1.Attribute, 2.Classify, 3.Accuracy')
+    parser.add_argument('--OPT', type=int, default=10, help='0.None, 1.Attribute, 2.Classify, 3.Accuracy')
 
     # ETC.
     parser.add_argument('--HEADER', type=int, default=0, help='0.Not-Show, 1.Show')
@@ -333,7 +335,7 @@ def loadDataset():
     # Balance training class
     baX70 = None
     baAtt70 = None
-    sampleEach = 500
+    sampleEach = 1000
     for z in range(len(trainClass)):
         eachInputX = []
         eachInputY = []
@@ -502,13 +504,6 @@ if __name__ == "__main__":
 
     dataSet = loadDataset()
 
-    if globalV.FLAGS.KEY == "APY":
-        with open(globalV.FLAGS.BASEDIR + globalV.FLAGS.APYPATH + 'attribute_names.txt', 'r') as f:
-            allClassAttName = [line.strip() for line in f]
-    elif globalV.FLAGS.KEY == "AWA2":
-        with open(globalV.FLAGS.BASEDIR + globalV.FLAGS.AWA2PATH + 'predicates.txt', 'r') as f:
-            allClassAttName = [line.split()[1] for line in f]
-
     # from sklearn import tree
     # clf = tree.DecisionTreeClassifier()
     # clf = clf.fit(dataSet.concatAtt, range(len(dataSet.allClassName)))
@@ -550,7 +545,7 @@ if __name__ == "__main__":
     if globalV.FLAGS.OPT == 1:
         print('\nTrain Attribute')
         attModel = attribute()
-        attModel.trainAtt(dataSet.trX70, dataSet.trAtt70, dataSet.vX, dataSet.vAtt, dataSet.teX, dataSet.teAtt)
+        attModel.trainAtt(dataSet.baX70, dataSet.baAtt70, dataSet.vX, dataSet.vAtt, dataSet.teX, dataSet.teAtt)
 
     elif globalV.FLAGS.OPT == 2:
         print('\nTrain Classify')
@@ -965,6 +960,7 @@ if __name__ == "__main__":
                 predY_1 = clf.predict(tmpAtt_1)
 
                 tmpAcc_1 = np.mean(np.equal(predY_1, eachInputY))*100
+
                 print('Class: {0:<15} Size: {1:<10} Accuracy = {2:.4f}%'.format(dataSet.allClassName[z], eachInputX.shape[0], tmpAcc_1))
 
 
@@ -1020,7 +1016,247 @@ if __name__ == "__main__":
         # accEachClass(15, 20, dataSet.vX, dataSet.vY, dataSet.allClassName)
         # accEachClass(20, 32, dataSet.teX, dataSet.teY, dataSet.allClassName)
 
+    elif globalV.FLAGS.OPT == 7:
+        model = attribute()
+        myFile = open("Report_OPT_7_" + globalV.FLAGS.KEY + ".csv", "a")
+
+        def checkAttribute(start, end, x1, y1, att1):
+            for z in range(start, end):
+                myFile.write('{0}'.format(dataSet.allClassName[z]))
+                eachInputX = []
+                eachInputY = []
+                eachInputAtt = []
+                for k in range(0, x1.shape[0]):
+                    if y1[k] == z:
+                        eachInputX.append(x1[k])
+                        eachInputY.append(y1[k])
+                        eachInputAtt.append(att1[k])
+                eachInputX = np.array(eachInputX)
+                eachInputY = np.array(eachInputY)
+                eachInputAtt = np.array(eachInputAtt)
+
+                # Get predict attribute
+                tmpAtt_1 = model.getAttribute(eachInputX)
+                tmpAtt_1 = np.where(tmpAtt_1 > 0.5, 1, 0)
+
+                logicOr = np.logical_or(tmpAtt_1, eachInputAtt)
+                logicOr_count = np.count_nonzero(logicOr == 0, axis=0)
+
+                logicXor = np.logical_xor(tmpAtt_1, eachInputAtt)
+                logicXor_count = np.count_nonzero(logicXor == 1, axis=0)
+
+                logicAnd = np.logical_and(tmpAtt_1, eachInputAtt)
+                logicAnd_count = np.count_nonzero(logicAnd == 1, axis=0)
+
+                myFile.write(',{0}'.format(tmpAtt_1.shape[0]))
+                for l in range(tmpAtt_1.shape[1]):
+                    myFile.write(',{0},{1},{2}'.format(logicOr_count[l], logicXor_count[l], logicAnd_count[l]))
+                myFile.write('\n')
+
+        checkAttribute(0, 15, dataSet.trX30, dataSet.trY30, dataSet.trAtt30)
+        checkAttribute(15, 20, dataSet.vX, dataSet.vY, dataSet.vAtt)
+        checkAttribute(20, 32, dataSet.teX, dataSet.teY, dataSet.teAtt)
+        myFile.close()
+
+    elif globalV.FLAGS.OPT == 8:
+        model = attribute()
+        myFile = open("Report_OPT_8_" + globalV.FLAGS.KEY + ".csv", "a")
+
+        def checkAttribute(start, end, x1, y1, att1):
+            for z in range(start, end):
+                myFile.write('{0}'.format(dataSet.allClassName[z]))
+                eachInputX = []
+                eachInputY = []
+                eachInputAtt = []
+                for k in range(0, x1.shape[0]):
+                    if y1[k] == z:
+                        eachInputX.append(x1[k])
+                        eachInputY.append(y1[k])
+                        eachInputAtt.append(att1[k])
+                eachInputX = np.array(eachInputX)
+                eachInputY = np.array(eachInputY)
+                eachInputAtt = np.array(eachInputAtt)
+
+                # Get predict attribute
+                tmpAtt_1 = model.getAttribute(eachInputX)
+                tmpAtt_1 = np.where(tmpAtt_1 > 0.5, 1, 0)
+
+                check = tmpAtt_1 == eachInputAtt
+                check_count = np.sum(check, axis=1)
+                unique, counts = np.unique(check_count, return_counts=True)
+
+                checkUnique = 0
+                myFile.write(',{0}'.format(tmpAtt_1.shape[0]))
+                for l in range(eachInputAtt.shape[1]+1):
+                    if checkUnique < unique.shape[0] and unique[checkUnique] == l:
+                        myFile.write(',{0}'.format(counts[checkUnique]))
+                        checkUnique += 1
+                    else:
+                        myFile.write(',0')
+                myFile.write('\n')
+
+        checkAttribute(0, 15, dataSet.trX30, dataSet.trY30, dataSet.trAtt30)
+        checkAttribute(15, 20, dataSet.vX, dataSet.vY, dataSet.vAtt)
+        checkAttribute(20, 32, dataSet.teX, dataSet.teY, dataSet.teAtt)
+        myFile.close()
+
+    elif globalV.FLAGS.OPT == 9:
+        model = attribute()
+        myFile = open("Report_OPT_9_" + globalV.FLAGS.KEY + ".csv", "a")
+
+        def checkAttribute(start, end, x1, y1, att1, allAtt1):
+            for z in range(start, end):
+                myFile.write('{0}'.format(dataSet.allClassName[z]))
+                eachInputX = []
+                eachInputY = []
+                eachInputAtt = []
+                for k in range(0, x1.shape[0]):
+                    if y1[k] == z:
+                        eachInputX.append(x1[k])
+                        eachInputY.append(y1[k])
+                        eachInputAtt.append(att1[k])
+                eachInputX = np.array(eachInputX)
+                eachInputY = np.array(eachInputY)
+                eachInputAtt = np.array(eachInputAtt)
+
+                # Get predict attribute
+                tmpAtt_1 = model.getAttribute(eachInputX)
+                tmpAtt_1 = np.where(tmpAtt_1 > 0.5, 1, 0)
+
+                myFile.write(',{0}'.format(tmpAtt_1.shape[0]))
+                for l in range(allAtt1.shape[0]):
+                    check = tmpAtt_1 == np.expand_dims(allAtt1[l], axis=0)
+                    check_count = np.sum(check, axis=1)
+                    myFile.write(',{0}'.format(np.count_nonzero(check_count == 31, axis=0)))
+                myFile.write('\n')
+
+        checkAttribute(0, 15, dataSet.trX30, dataSet.trY30, dataSet.trAtt30, dataSet.concatAtt)
+        checkAttribute(15, 20, dataSet.vX, dataSet.vY, dataSet.vAtt, dataSet.concatAtt)
+        checkAttribute(20, 32, dataSet.teX, dataSet.teY, dataSet.teAtt, dataSet.concatAtt)
+        myFile.close()
+
+    elif globalV.FLAGS.OPT == 10:
+        model = attribute()
+
+        def calNN (xx, yy, comb=False):
+            tmpAtt_1 = model.getEmbedded(xx)
+            nbrs = NearestNeighbors(n_neighbors=11, algorithm='ball_tree').fit(tmpAtt_1)
+            distances, indices = nbrs.kneighbors(tmpAtt_1)
+            print(tmpAtt_1.shape)
+            print(indices.shape)
+
+            if comb:
+                sumV = 0
+                for i in range(3133):
+                    pos = [yy[j] for j in indices[i]]
+                    sumV += ((np.sum(pos == pos[0]) - 1) / 10.0) * 100
+                print(sumV / float(3133))
+
+                sumV = 0
+                for i in range(3133, 4122):
+                    pos = [yy[j] for j in indices[i]]
+                    sumV += ((np.sum(pos == pos[0]) - 1) / 10.0) * 100
+                print(sumV / float(4122-3133))
+
+                sumV = 0
+                for i in range(4122, indices.shape[0]):
+                    pos = [yy[j] for j in indices[i]]
+                    sumV += ((np.sum(pos == pos[0]) - 1) / 10.0) * 100
+                print(sumV / float(indices.shape[0]-4122))
+
+                sumV = 0
+                for i in range(indices.shape[0]):
+                    pos = [yy[j] for j in indices[i]]
+                    sumV += ((np.sum(pos == pos[0]) - 1) / 10.0) * 100
+                print(sumV / indices.shape[0])
+
+            else:
+                sumV = 0
+                for i in range(indices.shape[0]):
+                    pos = [yy[j] for j in indices[i]]
+                    sumV += ((np.sum(pos==pos[0])-1) / 10.0)*100
+                print(sumV/indices.shape[0])
 
 
+        # tmpAtt_1 = model.getEmbedded(dataSet.vX)
+        # tmpAtt_1 = model.getEmbedded(dataSet.teX)
 
+        calNN(dataSet.trX30, dataSet.trY30)
+        calNN(dataSet.vX, dataSet.vY)
+        calNN(dataSet.teX, dataSet.teY)
+
+        tmpCombX = np.concatenate((dataSet.trX30, dataSet.vX, dataSet.teX), axis=0)
+        tmpCombY = np.concatenate((dataSet.trY30, dataSet.vY, dataSet.teY), axis=0)
+
+        calNN(tmpCombX, tmpCombY, comb=True)
+
+        # checkAttribute(0, 15, dataSet.trX30, dataSet.trY30, dataSet.trAtt30, dataSet.concatAtt)
+        # checkAttribute(15, 20, dataSet.vX, dataSet.vY, dataSet.vAtt, dataSet.concatAtt)
+        # checkAttribute(20, 32, dataSet.teX, dataSet.teY, dataSet.teAtt, dataSet.concatAtt)
+
+    elif globalV.FLAGS.OPT == 11:
+        x = tf.placeholder(tf.float32, name='inputImage', shape=[None, globalV.FLAGS.height, globalV.FLAGS.width, 3])
+        cnnFeature = alexnet(x)
+
+        # Tensorflow Session
+        tfConfig = tf.ConfigProto(allow_soft_placement=True)
+        tfConfig.gpu_options.allow_growth = True
+        sess = tf.Session(config=tfConfig)
+        sess.run(tf.global_variables_initializer())
+
+        def calNN (xx, yy, comb=False):
+            tmpAtt_1 = sess.run(cnnFeature, feed_dict={x: xx[:globalV.FLAGS.batchSize]})
+            for j in range(globalV.FLAGS.batchSize, xx.shape[0], globalV.FLAGS.batchSize):
+                xBatch = xx[j:j + globalV.FLAGS.batchSize]
+                tmpAtt_1 = np.concatenate((tmpAtt_1, sess.run(cnnFeature, feed_dict={x: xBatch})), axis=0)
+
+            nbrs = NearestNeighbors(n_neighbors=11, algorithm='ball_tree').fit(tmpAtt_1)
+            distances, indices = nbrs.kneighbors(tmpAtt_1)
+            print(tmpAtt_1.shape)
+            print(indices.shape)
+
+            if comb:
+                sumV = 0
+                for i in range(3133):
+                    pos = [yy[j] for j in indices[i]]
+                    sumV += ((np.sum(pos == pos[0]) - 1) / 10.0) * 100
+                print(sumV / float(3133))
+
+                sumV = 0
+                for i in range(3133, 4122):
+                    pos = [yy[j] for j in indices[i]]
+                    sumV += ((np.sum(pos == pos[0]) - 1) / 10.0) * 100
+                print(sumV / float(4122-3133))
+
+                sumV = 0
+                for i in range(4122, indices.shape[0]):
+                    pos = [yy[j] for j in indices[i]]
+                    sumV += ((np.sum(pos == pos[0]) - 1) / 10.0) * 100
+                print(sumV / float(indices.shape[0]-4122))
+
+                sumV = 0
+                for i in range(indices.shape[0]):
+                    pos = [yy[j] for j in indices[i]]
+                    sumV += ((np.sum(pos == pos[0]) - 1) / 10.0) * 100
+                print(sumV / indices.shape[0])
+
+            else:
+                sumV = 0
+                for i in range(indices.shape[0]):
+                    pos = [yy[j] for j in indices[i]]
+                    sumV += ((np.sum(pos==pos[0])-1) / 10.0)*100
+                print(sumV/indices.shape[0])
+
+
+        # tmpAtt_1 = model.getEmbedded(dataSet.vX)
+        # tmpAtt_1 = model.getEmbedded(dataSet.teX)
+
+        calNN(dataSet.trX30, dataSet.trY30)
+        calNN(dataSet.vX, dataSet.vY)
+        calNN(dataSet.teX, dataSet.teY)
+
+        tmpCombX = np.concatenate((dataSet.trX30, dataSet.vX, dataSet.teX), axis=0)
+        tmpCombY = np.concatenate((dataSet.trY30, dataSet.vY, dataSet.teY), axis=0)
+
+        calNN(tmpCombX, tmpCombY, comb=True)
 

@@ -1,0 +1,2 @@
+global FLAGS
+FLAGS = None
