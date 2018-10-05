@@ -348,8 +348,8 @@ if __name__ == "__main__":
     if globalV.FLAGS.OPT == 1:
         print('\nTrain Attribute')
         attModel = attribute()
-        # attModel.trainAtt(dataSet.baX70, dataSet.baAtt70, dataSet.vX, dataSet.vAtt, dataSet.teX, dataSet.teAtt)
-        attModel.trainClass(dataSet.baX70, dataSet.baY70, dataSet.trX30, dataSet.trY30)
+        attModel.trainAtt(dataSet.baX70, dataSet.baAtt70, dataSet.vX, dataSet.vAtt, dataSet.teX, dataSet.teAtt)
+        # attModel.trainClass(dataSet.baX70, dataSet.baY70, dataSet.trX30, dataSet.trY30)
 
     elif globalV.FLAGS.OPT == 2:
         model = attribute()
