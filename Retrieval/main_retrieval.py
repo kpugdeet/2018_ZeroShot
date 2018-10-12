@@ -78,6 +78,9 @@ def argumentParser():
     parser.add_argument('--HEADER', type=int, default=1, help='0.Not-Show, 1.Show')
     parser.add_argument('--SEED', type=int, default=0, help='Random number for shuffle data')
 
+    # Model
+    parser.add_argument('--MODEL', type=str, default='/attribute/model/model.ckpt', help='Random number for shuffle data')
+
     globalV.FLAGS, _ = parser.parse_known_args()
 
 def createFolder():
@@ -348,11 +351,12 @@ if __name__ == "__main__":
     if globalV.FLAGS.OPT == 1:
         print('\nTrain Attribute')
         attModel = attribute()
-        attModel.trainAtt(dataSet.baX70, dataSet.baAtt70, dataSet.vX, dataSet.vAtt, dataSet.teX, dataSet.teAtt)
-        # attModel.trainClass(dataSet.baX70, dataSet.baY70, dataSet.trX30, dataSet.trY30)
+        # attModel.trainAtt(dataSet.baX70, dataSet.baAtt70, dataSet.vX, dataSet.vAtt, dataSet.teX, dataSet.teAtt)
+        attModel.trainClass(dataSet.baX70, dataSet.baY70, dataSet.trX30, dataSet.trY30)
 
     elif globalV.FLAGS.OPT == 2:
         model = attribute()
+        outFile = open("tmp.csv", "a")
 
         def calNN (xx, yy, comb=False):
             tmpAtt_1 = model.getEmbedded(xx)
@@ -367,24 +371,28 @@ if __name__ == "__main__":
                     pos = [yy[j] for j in indices[i]]
                     sumV += ((np.sum(pos == pos[0]) - 1) / 10.0) * 100
                 print(sumV / float(3133))
+                outFile.write('{0},'.format(sumV / float(3133)))
 
                 sumV = 0
                 for i in range(3133, 4122):
                     pos = [yy[j] for j in indices[i]]
                     sumV += ((np.sum(pos == pos[0]) - 1) / 10.0) * 100
                 print(sumV / float(4122-3133))
+                outFile.write('{0},'.format(sumV / float(4122-3133)))
 
                 sumV = 0
                 for i in range(4122, indices.shape[0]):
                     pos = [yy[j] for j in indices[i]]
                     sumV += ((np.sum(pos == pos[0]) - 1) / 10.0) * 100
                 print(sumV / float(indices.shape[0]-4122))
+                outFile.write('{0},'.format(sumV / float(indices.shape[0]-4122)))
 
                 sumV = 0
                 for i in range(indices.shape[0]):
                     pos = [yy[j] for j in indices[i]]
                     sumV += ((np.sum(pos == pos[0]) - 1) / 10.0) * 100
                 print(sumV / indices.shape[0])
+                outFile.write('{0},'.format(sumV / indices.shape[0]))
 
             else:
                 sumV = 0
@@ -392,6 +400,7 @@ if __name__ == "__main__":
                     pos = [yy[j] for j in indices[i]]
                     sumV += ((np.sum(pos==pos[0])-1) / 10.0)*100
                 print(sumV/indices.shape[0])
+                outFile.write('{0},'.format(sumV/indices.shape[0]))
             print('')
 
 
@@ -402,3 +411,5 @@ if __name__ == "__main__":
         tmpCombX = np.concatenate((dataSet.trX30, dataSet.vX, dataSet.teX), axis=0)
         tmpCombY = np.concatenate((dataSet.trY30, dataSet.vY, dataSet.teY), axis=0)
         calNN(tmpCombX, tmpCombY, comb=True)
+        outFile.write('\n')
+        outFile.close()

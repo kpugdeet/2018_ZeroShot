@@ -31,8 +31,8 @@ class attribute (object):
 
         # Loss
         # self.totalLoss = tf.reduce_mean(tf.squared_difference(self.att, self.outAtt))
-        self.totalLoss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=self.att, logits=self.outAtt))
-        # self.totalLoss = tf.reduce_mean(tf.losses.softmax_cross_entropy(tf.one_hot(self.y, globalV.FLAGS.numClass), logits=self.outClass))
+        # self.totalLoss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=self.att, logits=self.outAtt))
+        self.totalLoss = tf.reduce_mean(tf.losses.softmax_cross_entropy(tf.one_hot(self.y, globalV.FLAGS.numClass), logits=self.outClass))
 
         # Accuracy
         self.accuracy = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(self.outClass, 1), self.y), tf.float32))
@@ -45,8 +45,8 @@ class attribute (object):
         # Log all output
         self.averageL = tf.placeholder(tf.float32)
         tf.summary.scalar("averageLoss", self.averageL)
-        # self.averageA = tf.placeholder(tf.float32)
-        # tf.summary.scalar("averageAcc", self.averageA)
+        self.averageA = tf.placeholder(tf.float32)
+        tf.summary.scalar("averageAcc", self.averageA)
 
         # Merge all log
         self.merged = tf.summary.merge_all()
@@ -74,7 +74,7 @@ class attribute (object):
             self.restoreModel()
 
     def restoreModel(self):
-        self.saver.restore(self.sess, globalV.FLAGS.BASEDIR + globalV.FLAGS.DIR + '/attribute/model/model.ckpt')
+        self.saver.restore(self.sess, globalV.FLAGS.BASEDIR + globalV.FLAGS.DIR + globalV.FLAGS.MODEL)
         npzFile = np.load(globalV.FLAGS.BASEDIR + globalV.FLAGS.DIR + '/attribute/model/checkpoint.npz')
         self.Start = npzFile['Start']
         self.Check = npzFile['Check']
@@ -170,7 +170,8 @@ class attribute (object):
             summary = self.sess.run(self.merged, feed_dict=feed)
             self.testWriter.add_summary(summary, i_0)
 
-            if i_0 % self.Check == 0:
+            # if i_0 % self.Check == 0:
+            if i_0 % 100 == 0:
                 savePath = self.saver.save(self.sess, globalV.FLAGS.BASEDIR + globalV.FLAGS.DIR + '/attribute/model/model.ckpt',global_step=i_0)
                 print('Model saved in file: {0}'.format(savePath))
                 if i_0 / self.Check == 10:
